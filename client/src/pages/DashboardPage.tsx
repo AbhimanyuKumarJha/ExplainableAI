@@ -6,7 +6,7 @@ import {
   ShieldAlert,
   Sparkles,
 } from 'lucide-react'
-import { recentScans, sources } from '../demoData'
+import { recentScans } from '../demoData'
 import type { AnalysisResult } from '../types'
 import { LimeList } from '../components/analysis/LimeList'
 import { RecentScanTable } from '../components/analysis/RecentScanTable'
@@ -45,15 +45,18 @@ export function DashboardPage({ analysis }: { analysis: AnalysisResult }) {
           label="Feature Signals"
           value={analysis.explanation.length.toString()}
         />
-        <MetricCard label="Evidence Sources" value={sources.length.toString()} />
+        <MetricCard
+          label="Evidence Sources"
+          value={analysis.rag.similarArticles.length.toString()}
+        />
       </div>
       <div className="content-grid">
         <article className="panel">
           <SectionTitle icon={<Gauge size={18} />} title="Model Confidence" />
           <ConfidenceBar verdict={analysis.verdict} value={analysis.verdictConfidence} />
           <p className="muted">
-            The backend returns real-class probability. The interface converts
-            that into final-label confidence for readability.
+            The backend returns confidence for the predicted label. The
+            interface derives real probability from that same response.
           </p>
         </article>
         <article className="panel">
@@ -66,10 +69,7 @@ export function DashboardPage({ analysis }: { analysis: AnalysisResult }) {
         </article>
         <article className="panel">
           <SectionTitle icon={<ClipboardList size={18} />} title="RAG Summary" />
-          <p>
-            Demo retrieval identifies timeline and authority contradictions
-            against verified institutional sources.
-          </p>
+          <p>{analysis.rag.response}</p>
         </article>
       </div>
     </section>

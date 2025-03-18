@@ -5,7 +5,8 @@ export type LimeWeight = readonly [string, number]
 export type BackendPrediction = {
   prediction: Verdict
   confidence: number
-  explanation: LimeWeight[]
+  explanation?: LimeWeight[]
+  rag?: BackendRagEvidence
 }
 
 export type AnalysisResult = {
@@ -14,16 +15,41 @@ export type AnalysisResult = {
   realProbability: number
   verdictConfidence: number
   explanation: LimeWeight[]
+  rag: RagEvidence
   text: string
   createdAt: string
 }
 
-export type SourceEvidence = {
-  domain: string
-  title: string
-  excerpt: string
-  relevance: number
+export type BackendRagArticle = {
+  text?: string
+  label?: Verdict
+  score?: number
+  subject?: string
+  date?: string
+}
+
+export type BackendRagEvidence = {
+  status?: string
+  present?: boolean
+  top_score?: number
+  response?: string
+  similar_articles?: BackendRagArticle[]
+}
+
+export type RagArticle = {
+  text: string
+  label: Verdict
+  score: number
+  subject: string
   date: string
+}
+
+export type RagEvidence = {
+  status: string
+  present: boolean
+  topScore: number
+  response: string
+  similarArticles: RagArticle[]
 }
 
 export type RecentScan = {
