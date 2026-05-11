@@ -2,6 +2,7 @@
 
 Built **FastAPI backend** 
 
+![Work Flow](images/Image1.jpeg)
 
 
 ## 📁 Project Structure
