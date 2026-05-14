@@ -1,9 +1,13 @@
 # 🚀 Fake News Detection API (BiLSTM + LIME)
 
-Built **FastAPI backend** 
+Built **FastAPI backend**
 
 ![Work Flow](images/Image1.jpeg)
+First we should run this command for installing rag requirements
 
+```
+pip install -r requirements_rag.txt
+```
 
 ## 📁 Project Structure
 
@@ -37,7 +41,6 @@ venv\Scripts\activate
 ```
 
 ---
-
 
 ## ▶️ Test the API
 
@@ -110,4 +113,3 @@ Response:
 ## 👨‍💻 Author- Ahadthegreat
 
 Built for learning and deployment of NLP models with explainability.
-

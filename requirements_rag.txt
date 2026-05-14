@@ -1,0 +1,15 @@
+# existing dependencies (from original app.py)
+fastapi
+uvicorn
+pydantic
+tensorflow
+lime
+nltk
+numpy
+
+# RAG additions
+sentence-transformers>=2.6.1
+faiss-cpu>=1.7.4
+requests>=2.31.0
+pandas>=1.5.0
+python-dotenv>=1.0.0
