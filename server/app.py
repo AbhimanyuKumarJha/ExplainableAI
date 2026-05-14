@@ -1,6 +1,8 @@
 import re
 import string
 import pickle
+import os
+from pathlib import Path
 import numpy as np
 import tensorflow as tf
 
@@ -10,10 +12,48 @@ from tensorflow.keras.preprocessing.sequence import pad_sequences
 from lime.lime_text import LimeTextExplainer
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
+from dotenv import load_dotenv
 
-MAX_LEN = 120 
-MODEL_PATH = "model/bilstm_noisy_labels_model.h5"
-TOKENIZER_PATH = "model/tokenizer.pkl"
+BASE_DIR = Path(__file__).resolve().parent
+load_dotenv(BASE_DIR / ".env")
+
+
+def env_int(name, default):
+    return int(os.getenv(name, str(default)))
+
+
+def env_float(name, default):
+    return float(os.getenv(name, str(default)))
+
+
+def env_path(name, default):
+    value = Path(os.getenv(name, default))
+    return value if value.is_absolute() else BASE_DIR / value
+
+
+API_TITLE = os.getenv("API_TITLE", "Fake News Detection API with LIME")
+API_READY_MESSAGE = os.getenv(
+    "API_READY_MESSAGE",
+    "Fake News Detection API with LIME is running",
+)
+SERVER_HOST = os.getenv("SERVER_HOST", "127.0.0.1")
+SERVER_PORT = env_int("SERVER_PORT", 8000)
+
+MAX_LEN = env_int("MAX_SEQUENCE_LENGTH", 120)
+MODEL_PATH = env_path("MODEL_PATH", "model/bilstm_noisy_labels_model.h5")
+TOKENIZER_PATH = env_path("TOKENIZER_PATH", "model/tokenizer.pkl")
+PREDICTION_THRESHOLD = env_float("PREDICTION_THRESHOLD", 0.5)
+
+LIME_CLASS_NAMES = [
+    name.strip()
+    for name in os.getenv("LIME_CLASS_NAMES", "fake,real").split(",")
+    if name.strip()
+]
+LIME_PREDICT_NUM_FEATURES = env_int("LIME_PREDICT_NUM_FEATURES", 10)
+LIME_PREDICT_NUM_SAMPLES = env_int("LIME_PREDICT_NUM_SAMPLES", 1000)
+LIME_EXPLAIN_NUM_FEATURES = env_int("LIME_EXPLAIN_NUM_FEATURES", 10)
+LIME_EXPLAIN_NUM_SAMPLES = env_int("LIME_EXPLAIN_NUM_SAMPLES", 500)
+STOPWORDS_LANGUAGE = os.getenv("STOPWORDS_LANGUAGE", "english")
 
 
 model = tf.keras.models.load_model(MODEL_PATH)
@@ -21,9 +61,9 @@ model = tf.keras.models.load_model(MODEL_PATH)
 with open(TOKENIZER_PATH, "rb") as f:
     tokenizer = pickle.load(f)
 
-stop_words = set(stopwords.words("english"))
+stop_words = set(stopwords.words(STOPWORDS_LANGUAGE))
 
-app = FastAPI(title="Fake News Detection API with LIME")
+app = FastAPI(title=API_TITLE)
 
 class TextRequest(BaseModel):
     text: str
@@ -45,8 +85,7 @@ def preprocess(text):
     seq = tokenizer.texts_to_sequences([cleaned])
     padded = pad_sequences(seq, maxlen=MAX_LEN, padding="post", truncating="post")
     return padded
-class_names = ["fake", "real"]
-explainer = LimeTextExplainer(class_names=class_names)
+explainer = LimeTextExplainer(class_names=LIME_CLASS_NAMES)
 
 def predict_proba_for_lime(texts):
     cleaned = [clean_text(t) for t in texts]
@@ -60,20 +99,20 @@ def predict_proba_for_lime(texts):
 
 @app.get("/")
 def home():
-    return {"message": "🚀 Fake News Detection API with LIME is running"}
+    return {"message": API_READY_MESSAGE}
 
 @app.post("/predict")
 def predict(request: TextRequest):
     processed = preprocess(request.text)
 
     prob = model.predict(processed)[0][0]
-    label = "real" if prob > 0.5 else "fake"
+    label = "real" if prob > PREDICTION_THRESHOLD else "fake"
 
     exp = explainer.explain_instance(
         request.text,
         predict_proba_for_lime,
-        num_features=10,
-        num_samples=1000  
+        num_features=LIME_PREDICT_NUM_FEATURES,
+        num_samples=LIME_PREDICT_NUM_SAMPLES,
     )
 
     explanation = exp.as_list()
@@ -89,8 +128,8 @@ def explain(request: TextRequest):
     exp = explainer.explain_instance(
         request.text,
         predict_proba_for_lime,
-        num_features=10,
-        num_samples=500
+        num_features=LIME_EXPLAIN_NUM_FEATURES,
+        num_samples=LIME_EXPLAIN_NUM_SAMPLES,
     )
 
     return {
@@ -99,4 +138,4 @@ def explain(request: TextRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    uvicorn.run(app, host=SERVER_HOST, port=SERVER_PORT)
