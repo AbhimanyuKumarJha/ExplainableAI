@@ -6,7 +6,7 @@ Built **FastAPI backend**
 First we should run this command for installing rag requirements
 
 ```
-pip install -r requirements_rag.txt
+pip install -r server/requirements_rag.txt
 ```
 
 ## 📁 Project Structure
