@@ -93,34 +93,78 @@ class NewsRAG:
 
     # ── setup ─────────────────────────────────────────────────────────────────
 
+    
     def _load_dataset(self, csv_path: str) -> None:
         df = pd.read_csv(csv_path)
         # Keep only rows with actual text
         df = df[df["text"].notna() & (df["text"].str.strip() != "")].reset_index(drop=True)
         self._df = df
         log.info(f"Dataset loaded: {len(df)} rows  (fake={sum(df['label']==0)}, real={sum(df['label']==1)})")
-
+    
     def _build_index(self) -> None:
+
         from sentence_transformers import SentenceTransformer
         import faiss
 
         log.info(f"Loading embedding model: {EMBED_MODEL}")
+
         self._encoder = SentenceTransformer(EMBED_MODEL)
 
-        texts = self._df["text"].tolist()
-        log.info(f"Embedding {len(texts)} articles (this takes a minute on first run) …")
+        INDEX_FILE = "news.index"
+        EMBED_FILE = "embeddings.npy"
 
-        embeddings = self._encoder.encode(
-            texts,
-            convert_to_numpy=True,
-            normalize_embeddings=True,   # cosine via inner product
-            show_progress_bar=True,
-            batch_size=256,
-        )
+        # ── Load cached files ─────────────────────────────
 
-        self._index = faiss.IndexFlatIP(EMBED_DIM)
-        self._index.add(embeddings.astype(np.float32))
-        log.info(f"FAISS index ready — {self._index.ntotal} vectors.")
+        if os.path.exists(INDEX_FILE) and os.path.exists(EMBED_FILE):
+
+            log.info("Loading cached embeddings …")
+
+            embeddings = np.load(EMBED_FILE)
+
+            log.info("Loading cached FAISS index …")
+
+            self._index = faiss.read_index(INDEX_FILE)
+
+            log.info(
+                f"FAISS index loaded — {self._index.ntotal} vectors."
+            )
+
+        # ── Build + save cache ────────────────────────────
+
+        else:
+
+            texts = self._df["text"].tolist()
+
+            log.info(
+                f"Embedding {len(texts)} articles (first run only) …"
+            )
+
+            embeddings = self._encoder.encode(
+                texts,
+                convert_to_numpy=True,
+                normalize_embeddings=True,
+                show_progress_bar=True,
+                batch_size=256,
+            )
+
+            embeddings = embeddings.astype(np.float32)
+
+            self._index = faiss.IndexFlatIP(EMBED_DIM)
+
+            self._index.add(embeddings)
+
+            log.info("Saving embeddings cache …")
+
+            np.save(EMBED_FILE, embeddings)
+
+            log.info("Saving FAISS index …")
+
+            faiss.write_index(self._index, INDEX_FILE)
+
+            log.info(
+                f"FAISS index ready — {self._index.ntotal} vectors."
+            )
+
 
     # ── core search ──────────────────────────────────────────────────────────
 
@@ -319,7 +363,7 @@ class NewsRAG:
         search_results = self._search(query_vec, top_k=TOP_K_SIMILAR + 1)
 
         top_score = search_results[0]["score"] if search_results else 0.0
-        present   = top_score >= self.match_threshold
+        present   = top_score >= 0.4
 
         # ── Step 2 & 3: build response ────────────────────────────────────────
         if not present:

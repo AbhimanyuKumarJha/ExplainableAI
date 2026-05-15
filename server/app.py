@@ -8,8 +8,8 @@ Flow:
     1. Clean & preprocess input text
     2. BI-LSTM predicts real / fake + confidence
     3. LIME identifies key words
-    4. RAG checks if article is in dataset → explains prediction using
-       Qwen + similar articles  (or says it's out of training range)
+    4. RAG checks if article is in dataset → model 0/1 →label → explains prediction using
+       Qwen + similar articles  (or says it's out of training range) show real/fake +
 
 Run:
     uvicorn app:app --host 127.0.0.1 --port 8000 --reload
@@ -19,20 +19,26 @@ import re
 import string
 import pickle
 import os
+from pathlib import Path
+
 import numpy as np
+import pandas as pd
 import tensorflow as tf
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+
 from tensorflow.keras.preprocessing.sequence import pad_sequences
+
 from lime.lime_text import LimeTextExplainer
+
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
+
 from dotenv import load_dotenv
 
 from rag_for_py import NewsRAG
-
 load_dotenv()
 
 # ── model config ─────────────────────────────────────────────────────────────
@@ -106,7 +112,6 @@ def predict_proba_for_lime(texts):
 @app.get("/")
 def home():
     return {"message": "Fake News Detection API — BI-LSTM + LIME + RAG is running"}
-
 
 @app.post("/predict")
 def predict(request: TextRequest):
