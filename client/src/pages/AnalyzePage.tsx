@@ -40,8 +40,8 @@ export function AnalyzePage({ onAnalysisComplete }: AnalyzePageProps) {
     } catch (requestError) {
       setError(
         requestError instanceof Error
-          ? `${requestError.message}. Confirm the WSL FastAPI server is running on 127.0.0.1:8000.`
-          : 'Prediction failed. Confirm the WSL FastAPI server is running.',
+          ? `${requestError.message}. Confirm the FastAPI server or Vite proxy target is reachable.`
+          : 'Prediction failed. Confirm the FastAPI server or Vite proxy target is reachable.',
       )
     } finally {
       setIsLoading(false)
@@ -53,7 +53,7 @@ export function AnalyzePage({ onAnalysisComplete }: AnalyzePageProps) {
       <PageHeader
         eyebrow="Model-assisted verification"
         title="Analyze News Article"
-        description="Submit article text for BiLSTM classification and LIME interpretation."
+        description="Submit article text for BiLSTM classification, LIME interpretation, and RAG evidence."
       />
       <form className="analysis-grid" onSubmit={handleSubmit}>
         <div className="panel input-panel">
@@ -92,17 +92,16 @@ export function AnalyzePage({ onAnalysisComplete }: AnalyzePageProps) {
         <aside className="panel status-panel">
           <div>
             <span className="meta-label">Pipeline Status</span>
-            <h2>BiLSTM + LIME</h2>
+            <h2>BiLSTM + LIME + RAG</h2>
             <p>
-              Live classification is connected through the Vite proxy. RAG
-              evidence uses demo fixtures until the backend exposes source
-              retrieval.
+              One request to the FastAPI prediction endpoint returns the model
+              verdict, LIME weights, and RAG explanation together.
             </p>
           </div>
           <div className="status-list">
             <StatusRow label="Classifier API" state="Live endpoint" />
             <StatusRow label="LIME Weights" state="From /predict" />
-            <StatusRow label="RAG Sources" state="Demo evidence" />
+            <StatusRow label="RAG Sources" state="From /predict" />
           </div>
         </aside>
       </form>

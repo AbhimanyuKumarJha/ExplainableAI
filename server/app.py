@@ -8,8 +8,8 @@ Flow:
     1. Clean & preprocess input text
     2. BI-LSTM predicts real / fake + confidence
     3. LIME identifies key words
-    4. RAG checks if article is in dataset → explains prediction using
-       Qwen + similar articles  (or says it's out of training range)
+    4. RAG checks if article is in dataset → model 0/1 →label → explains prediction using
+       Qwen + similar articles  (or says it's out of training range) show real/fake +
 
 Run:
     uvicorn app:app --host 127.0.0.1 --port 8000 --reload
@@ -19,28 +19,39 @@ import re
 import string
 import pickle
 import os
+import logging
+from pathlib import Path
+
 import numpy as np
+import pandas as pd
 import tensorflow as tf
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+
 from tensorflow.keras.preprocessing.sequence import pad_sequences
+
 from lime.lime_text import LimeTextExplainer
+
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
+
 from dotenv import load_dotenv
 
 from rag_for_py import NewsRAG
 
-load_dotenv()
+BASE_DIR = Path(__file__).resolve().parent
+load_dotenv(BASE_DIR / ".env")
+logger = logging.getLogger(__name__)
 
 # ── model config ─────────────────────────────────────────────────────────────
 
 MAX_LEN        = 120
-MODEL_PATH     = "model/bilstm_noisy_labels_model.h5"
-TOKENIZER_PATH = "model/tokenizer.pkl"
-CSV_PATH       = "processed_news.csv"
+MODEL_PATH     = BASE_DIR / "model" / "bilstm_noisy_labels_model.h5"
+TOKENIZER_PATH = BASE_DIR / "model" / "tokenizer.pkl"
+CSV_PATH       = BASE_DIR / "processed_news.csv"
 
 # ── load model & tokenizer ───────────────────────────────────────────────────
 
@@ -62,15 +73,33 @@ rag = NewsRAG(
 
 app = FastAPI(title="Fake News Detection API — BI-LSTM + LIME + RAG")
 
+cors_origins = [
+    origin.strip()
+    for origin in os.getenv(
+        "CORS_ORIGINS",
+        "http://localhost:5173,http://127.0.0.1:5173",
+    ).split(",")
+    if origin.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=cors_origins,
+    allow_origin_regex=r"https://.*\.ngrok-free\.dev",
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 class TextRequest(BaseModel):
     text: str
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.exception("Unhandled request error on %s", request.url.path)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Internal server error: {exc}"},
+    )
 
 # ── helpers (unchanged from original) ────────────────────────────────────────
 
@@ -101,12 +130,38 @@ def predict_proba_for_lime(texts):
     probs   = np.clip(probs, 1e-7, 1 - 1e-7)
     return np.hstack([1 - probs, probs])
 
+def fallback_rag_response(error_message: str):
+    return {
+        "status": "unavailable",
+        "present": False,
+        "top_score": 0.0,
+        "response": (
+            "RAG evidence could not be generated for this request. "
+            "The classifier and LIME result are still returned."
+        ),
+        "similar_articles": [],
+        "error": error_message,
+    }
+
+def serialize_rag_article(article):
+    article_label = article.get("label")
+    label = article_label if article_label in ("real", "fake") else (
+        "real" if article_label == 1 else "fake"
+    )
+
+    return {
+        "text": f"{article.get('text', '')[:300]}...",
+        "label": label,
+        "score": round(float(article.get("score", 0)), 4),
+        "subject": article.get("subject", ""),
+        "date": article.get("date", ""),
+    }
+
 # ── routes ────────────────────────────────────────────────────────────────────
 
 @app.get("/")
 def home():
     return {"message": "Fake News Detection API — BI-LSTM + LIME + RAG is running"}
-
 
 @app.post("/predict")
 def predict(request: TextRequest):
@@ -128,27 +183,42 @@ def predict(request: TextRequest):
     raw_text = request.text
 
     # Step 1 — BI-LSTM prediction
-    processed = preprocess(raw_text)
-    prob      = float(model.predict(processed)[0][0])
-    label     = "real" if prob > 0.5 else "fake"
-    confidence = prob if label == "real" else 1 - prob
+    try:
+        processed = preprocess(raw_text)
+        prob      = float(model.predict(processed)[0][0])
+        label     = "real" if prob > 0.5 else "fake"
+        confidence = prob if label == "real" else 1 - prob
+    except Exception as exc:
+        logger.exception("Prediction failed")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Prediction failed: {exc}",
+        ) from exc
 
     # Step 2 — LIME explanation
-    exp         = explainer.explain_instance(
-        raw_text,
-        predict_proba_for_lime,
-        num_features=10,
-        num_samples=1000,
-    )
-    lime_explanation = exp.as_list()   # [(word, score), ...]
+    try:
+        exp         = explainer.explain_instance(
+            raw_text,
+            predict_proba_for_lime,
+            num_features=10,
+            num_samples=1000,
+        )
+        lime_explanation = exp.as_list()   # [(word, score), ...]
+    except Exception as exc:
+        logger.exception("LIME explanation failed")
+        lime_explanation = []
 
     # Step 3 — RAG: check dataset presence + generate explanation
-    rag_result = rag.explain(
-        news_text        = raw_text,
-        prediction       = label,
-        confidence       = confidence,
-        lime_explanation = lime_explanation,
-    )
+    try:
+        rag_result = rag.explain(
+            news_text        = raw_text,
+            prediction       = label,
+            confidence       = confidence,
+            lime_explanation = lime_explanation,
+        )
+    except Exception as exc:
+        logger.exception("RAG explanation failed")
+        rag_result = fallback_rag_response(str(exc))
 
     return {
         "prediction":   label,
@@ -160,15 +230,10 @@ def predict(request: TextRequest):
             "top_score":        rag_result["top_score"],
             "response":         rag_result["response"],
             "similar_articles": [
-                {
-                    "text":    a["text"][:300] + "…",
-                    "label":   "real" if a["label"] == 1 else "fake",
-                    "score":   round(a["score"], 4),
-                    "subject": a.get("subject", ""),
-                    "date":    a.get("date", ""),
-                }
-                for a in rag_result["similar_articles"]
+                serialize_rag_article(a)
+                for a in rag_result.get("similar_articles", [])
             ],
+            "error":            rag_result.get("error"),
         },
     }
 

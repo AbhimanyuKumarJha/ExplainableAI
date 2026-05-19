@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AppShell } from './components/layout/AppShell'
 import { fallbackAnalysis } from './demoData'
@@ -9,8 +9,23 @@ import { RagPage } from './pages/RagPage'
 import type { AnalysisResult } from './types'
 import './App.css'
 
+const ANALYSIS_STORAGE_KEY = 'explainable-ai.latest-analysis'
+
+const loadStoredAnalysis = (): AnalysisResult => {
+  try {
+    const stored = window.localStorage.getItem(ANALYSIS_STORAGE_KEY)
+    return stored ? (JSON.parse(stored) as AnalysisResult) : fallbackAnalysis
+  } catch {
+    return fallbackAnalysis
+  }
+}
+
 function App() {
-  const [analysis, setAnalysis] = useState<AnalysisResult>(fallbackAnalysis)
+  const [analysis, setAnalysis] = useState<AnalysisResult>(loadStoredAnalysis)
+
+  useEffect(() => {
+    window.localStorage.setItem(ANALYSIS_STORAGE_KEY, JSON.stringify(analysis))
+  }, [analysis])
 
   return (
     <Routes>

@@ -1,4 +1,4 @@
-import type { AnalysisResult, RecentScan, SourceEvidence } from './types'
+import type { AnalysisResult, RecentScan } from './types'
 
 export const sampleArticle = `Global Financial Collapse Imminent: Insider Leaks Secret Plans for Digital Currency Confiscation.
 
@@ -32,6 +32,36 @@ export const fallbackAnalysis: AnalysisResult = {
     ['warned', -0.3],
     ['ominously', -0.33],
   ],
+  rag: {
+    status: 'present',
+    present: true,
+    topScore: 0.94,
+    response:
+      'The demo article is classified as fake because its strongest LIME terms are sensational claims such as "shocking", "sinister", and "confiscation". Similar retrieved records point to ordinary policy discussions rather than evidence for the article\'s extreme claims.',
+    similarArticles: [
+      {
+        subject: 'politicsNews',
+        label: 'real',
+        text: 'Official coverage describes non-binding digital currency policy discussions and legislative requirements rather than an immediate global confiscation plan.',
+        score: 0.94,
+        date: 'Oct 15, 2023',
+      },
+      {
+        subject: 'worldNews',
+        label: 'real',
+        text: 'Reuters reporting on finance ministers emphasized exploratory frameworks and local pilot programs for digital assets.',
+        score: 0.88,
+        date: 'Oct 16, 2023',
+      },
+      {
+        subject: 'politicsNews',
+        label: 'fake',
+        text: 'A similar fake-style article used urgent language, anonymous sourcing, and unsupported claims about hidden government action.',
+        score: 0.82,
+        date: 'Oct 14, 2023',
+      },
+    ],
+  },
 }
 
 export const recentScans: RecentScan[] = [
@@ -58,29 +88,5 @@ export const recentScans: RecentScan[] = [
     verdict: 'fake',
     confidence: 0.817,
     time: '42 min ago',
-  },
-]
-
-export const sources: SourceEvidence[] = [
-  {
-    domain: 'WEFORUM.ORG',
-    title: 'Official Press Release: Digital Currency Framework',
-    excerpt: 'The forum concluded with a non-binding agreement to continue exploratory work.',
-    relevance: 0.94,
-    date: 'Oct 15, 2023',
-  },
-  {
-    domain: 'REUTERS.COM',
-    title: 'G20 Finance Ministers conclude talks on digital assets',
-    excerpt: 'Ministers emphasized that any future implementations would require national legislation.',
-    relevance: 0.88,
-    date: 'Oct 16, 2023',
-  },
-  {
-    domain: 'IMF.ORG',
-    title: 'Transcript: Keynote Address by Managing Director',
-    excerpt: 'Full text of the address details localized pilot programs and risk frameworks.',
-    relevance: 0.91,
-    date: 'Oct 14, 2023',
   },
 ]

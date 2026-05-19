@@ -1,17 +1,19 @@
-import type { SourceEvidence } from '../../types'
+import type { RagArticle } from '../../types'
 
-export function SourceCard({ source }: { source: SourceEvidence }) {
+export function SourceCard({ source }: { source: RagArticle }) {
+  const sourceLabel = source.subject || source.label
+
   return (
     <article className="source-card">
       <div className="source-meta">
-        <span>{source.domain.charAt(0)}</span>
-        <strong>{source.domain}</strong>
-        <em>High</em>
+        <span>{sourceLabel.charAt(0).toUpperCase()}</span>
+        <strong>{sourceLabel}</strong>
+        <em>{source.label}</em>
       </div>
-      <h3>{source.title}</h3>
-      <p>{source.excerpt}</p>
+      <h3>Similarity match</h3>
+      <p>{source.text}</p>
       <small>
-        Relevance: {source.relevance.toFixed(2)} - Date: {source.date}
+        Score: {source.score.toFixed(2)} - Date: {source.date}
       </small>
     </article>
   )
